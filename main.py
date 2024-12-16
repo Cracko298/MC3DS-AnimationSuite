@@ -6,7 +6,7 @@ import tkinter as tk
 current_animation_label = None
 current_animation_id = None
 getCurrentFrame12 = None
-VERSION = 0.2
+VERSION = 0.3
 
 try:
     import py3dst
@@ -175,16 +175,9 @@ def playAnimationWithProgressBar(frameFolder:str, keyFrameCount:int):
             current_animation_label.config(image=frames[frame_index])
             current_animation_label.image = frames[frame_index]
 
-    def resetCurrentFrame12():
-        global getCurrentFrame12, draw_window
-        draw_window.destroy()
-
     def modify_frame():
-        global save_frame, current_color, is_erasing, text0, current_frame_index, draw_window, getCurrentFrame12
+        global save_frame, current_color, is_erasing, text0, draw_window
         frame_index = progress_bar.get()  # Get the current frame index from the progress bar
-        current_frame_index = frame_index  # Store the current frame index
-        if getCurrentFrame12 != None:
-            frame_index = getCurrentFrame12
         frame_path = os.path.join(frameFolder, keyframe_files[frame_index])
         original_frame = Image.open(frame_path)
         original_width, original_height = original_frame.size
@@ -192,8 +185,7 @@ def playAnimationWithProgressBar(frameFolder:str, keyFrameCount:int):
 
         draw_window = tk.Toplevel(root, background="black", bd=0)
         draw_window.title(f"Modify Keyframe - {frame_index}")
-        draw_window.protocol("WM_DELETE_WINDOW", resetCurrentFrame12)
-        draw_window.geometry(f"{500}x{500}")
+        draw_window.geometry(f"{700}x{650}")
         draw_window.resizable(False, False)
         text0 = tk.Label(draw_window, text=f"KeyFrame: {frame_index}\nMode: Drawing", font=("Helvetica", 16, "bold"), background="black", foreground="cyan")
         text0.pack()
@@ -250,23 +242,42 @@ def playAnimationWithProgressBar(frameFolder:str, keyFrameCount:int):
             modified_frame = scaled_frame.resize((original_width, original_height), Image.Resampling.NEAREST)
             modified_frame.save(frame_path)
             messagebox.showinfo("Modify Keyframe", f"Modified keyframe saved: {frame_path}")
-            getCurrentFrame12 = frame_index
-            print(getCurrentFrame12)
             openAnimation(listbox.get(tk.ACTIVE), 1)  # This will now open the correct frame
             draw_window.destroy()
-            modify_frame()
+            
+        def replace_with_image():
+            file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")], title="Select an Image")
+            if not file_path:
+                return
+        
+            try:
+                new_image = Image.open(file_path)
+                if new_image.size != (original_width, original_height):
+                    messagebox.showerror("Error", "Selected image dimensions do not match the original keyframe dimensions.")
+                    return
+
+                new_image.save(frame_path)
+                messagebox.showinfo("Success", f"Keyframe replaced successfully with {os.path.basename(file_path)}!")
+                original_frame.paste(new_image)
+                canvas.image = ImageTk.PhotoImage(original_frame.resize((256, 256), Image.Resampling.NEAREST))
+                canvas.create_image(0, 0, anchor=tk.NW, image=canvas.image)
+                draw_window.destroy()
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred while replacing the keyframe: {e}")
+
+        replace_button = Button(draw_window, text="Replace with Image", command=replace_with_image, background="black", foreground="cyan", bd=0, font=("Helvetica", 14, "bold"))
+        replace_button.pack(pady=5)
+        color_button = Button(draw_window, text="Choose Color", command=choose_color, background="black", foreground="cyan", bd=0, font=("Helvetica", 14, "bold"))
+        color_button.pack(pady=5)
 
         canvas.bind("<Button-1>", start_draw)
         canvas.bind("<B1-Motion>", draw_line)
 
-        color_button = Button(draw_window, text="Choose Color", command=choose_color, background="black", foreground="cyan", bd=0, font=("Helvetica", 14, "bold"))
-        color_button.pack(pady=10)
-
         erase_button = Button(draw_window, text="Erase", command=toggle_erase, background="black", foreground="cyan", bd=0, font=("Helvetica", 14, "bold"))
-        erase_button.pack(pady=10)
+        erase_button.pack(pady=5)
 
         save_button = Button(draw_window, text="Save", command=save_frame, background="black", foreground="cyan", bd= 0, font=("Helvetica", 14, "bold"))
-        save_button.pack(pady=10)
+        save_button.pack(pady=5)
 
     play_button = Button(controls_frame, text="Play", command=toggle_play_pause, background="black", foreground="cyan", width=8, bd=0, highlightbackground="cyan", highlightcolor="cyan", font=("Helvetica", 12, "bold"))
     play_button.pack(side=tk.LEFT, padx=10)
@@ -291,7 +302,7 @@ def extract_keyframe_number(filename):
 def saveAnimation(animationFolder:str, keyframeFolder:str, filename:str, width:int, height:int, num_images:int):
     filename = filename.replace('\n', '')
     animationFolder = animationFolder.replace('\n', '')
-    outputFilename = filename.replace('.png\n', '.3dst')
+    outputFilename = filename.replace('.png', '.3dst')
     modifiedFrameList = []
     tempKeyframeName = filename.replace('.png', "")
     keyframeName = f"{tempKeyframeName}_keyFrame"
@@ -307,7 +318,10 @@ def saveAnimation(animationFolder:str, keyframeFolder:str, filename:str, width:i
         result_image.paste(img, (0, index * int(width)))
     
     result_image.save(f"{animationFolder}\\{filename.replace('.png', '_modified.png')}")
-
+    outImage = Image.open(f"{animationFolder}\\{filename.replace('.png', '_modified.png')}")
+    texture = py3dst.Texture3dst().fromImage(outImage)
+    texture.export(f".\\{outputFilename}")
+    messagebox.showinfo("Animation Suite - Notice", f"Successfully saved your Animation to:\n{os.path.dirname(__file__)}\\{outputFilename}")
 
 def mainApp():
     global listbox, label, root, open_button, modify_frame, save_frame
